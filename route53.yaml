@@ -1,0 +1,12 @@
+---
+- name: Web Server Installation
+  hosts: localhost
+  tasks:
+    - name: create R53 record
+      route53:
+        zone: tridentfe.com
+        record: wordpress.tridentfe.com
+        type: A
+        ttl: 30
+        value: 52.15.220.78  # "{{ ansible_hostname }}"
+        state: present
