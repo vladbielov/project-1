@@ -1,0 +1,166 @@
+---
+- name: Web Server Installation
+  hosts: all
+  user: centos
+  become: yes
+  become_method: sudo
+  vars:
+    mysql_root_password: "password"
+  tasks:
+    - name: install httpd
+      package: 
+        name: httpd
+        state: present
+    
+    - name: install wget
+      package: 
+        name: wget
+        state: present  
+  
+    - name: yum update
+      action: yum name=* state=latest
+ 
+    - name: download epel
+      get_url: url=https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm dest=/root
+ 
+    - name: yum install epel
+      yum: name=/root/epel-release-latest-7.noarch.rpm state=latest
+  
+    - name: download remi repo rpm
+      get_url: url=https://rpms.remirepo.net/enterprise/remi-release-7.rpm dest=/root
+  
+    - name: install remi repo rpm
+      yum: name=/root/remi-release-7.rpm state=latest
+    - name: install yum-utils
+      package: 
+        name: yum-utils
+        state: present  
+  
+    - name: enable repo
+      command: yum-config-manager --enable remi-php74
+    - name: install php
+      package: 
+         name: php, php-cli, php-mysql
+         state: latest
+    - name: change web root permission
+      file: path=/var/www group=apache mode=0770 state=directory
+ 
+    - name: change web root permission
+      file: path=/var/www/html group=apache mode=0770 state=directory
+     
+    - name: change user permission
+      user: name=apache groups=apache
+    - name: install mysql
+      package: 
+        name: mysql
+        state: present  
+   
+    - name: restart httpd
+      service: 
+        name: httpd
+        state: restarted
+    - name: enable httpd
+      service: name=httpd enabled=yes
+    - name: install libselinux-python
+      package:
+        name: libselinux-python
+        state: present
+    - name: Disable SElinux
+      selinux:
+        state: disabled
+    - name: reboot
+      reboot:
+    - name: download WordPress
+      get_url: url=https://wordpress.org/latest.tar.gz dest=/root
+      
+    - name: unpack WordPress
+      unarchive:
+        src: /root/wordpress-5.4.2.tar.gz
+        dest: /var/www/html
+        remote_src: yes
+    - name: coping WordPress file to ./html  
+      copy:
+        src: /var/www/html/wordpress/.
+        dest: /var/www/html/
+        owner: apache
+        group: apache
+        remote_src: yes
+    - name: install MariaDB
+      yum:
+        name:
+          - mariadb-server
+          - mariadb
+          - MySQL-python
+          - python-pip
+        state: latest
+    - name: start MariaDB
+      service: 
+        name: mariadb
+        state: started
+    - name: enable MariaDB
+      service: name=mariadb enabled=yes
+    - name: update mysql root password for all root accounts
+      mysql_user:
+        name: root
+        host: "{{ item }}"
+        password: "{{ mysql_root_password }}"
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+        check_implicit_admin: yes
+        priv: "*.*:ALL,GRANT"
+      with_items:
+        - "{{ ansible_hostname }}"
+        - 127.0.0.1
+        - ::1
+        - localhost
+ 
+    - name: create a new database wordpressdb
+      mysql_db: name=wordpressdb state=present login_user=root login_password={{ mysql_root_password }}
+    - name: add users
+      user:
+        name: "{{item}}"
+        state: present
+      with_items:
+       - bob
+       - ben
+       - lisa
+       - katty
+    - name: Create a SSH key for user bob in ~bob/.ssh/id_rsa
+      user:
+        name: bob
+        generate_ssh_key: yes
+        ssh_key_file: .ssh/id_rsa
+    - name: Create a SSH key for user ben in ~ben/.ssh/id_rsa
+      user:
+        name: ben
+        generate_ssh_key: yes
+        ssh_key_file: .ssh/id_rsa
+    - name: Create a SSH key for user lisa in ~lisa/.ssh/id_rsa
+      user:
+        name: lisa
+        generate_ssh_key: yes
+        ssh_key_file: .ssh/id_rsa        
+    - name: Create a SSH key for user katty in ~katty/.ssh/id_rsa
+      user:
+        name: katty
+        generate_ssh_key: yes
+        ssh_key_file: .ssh/id_rsa 
+
+- name: run local playbook
+  import_playbook: rout53.yaml
+    
+    
+rout53.yaml
+---
+- name: Web Server Installation
+  hosts: localhost
+  tasks:
+    - name: create R53 record
+      route53:
+        zone: tridentfe.com
+        record: wordpress.tridentfe.com
+        type: A
+        ttl: 30
+        value: 52.15.220.78  # "{{ ansible_hostname }}"
+        state: present
+
